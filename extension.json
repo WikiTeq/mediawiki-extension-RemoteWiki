@@ -1,0 +1,57 @@
+{
+	"name": "RemoteWiki",
+	"version": "1.0.0",
+	"author": [
+		"WikiTeq",
+		"Vedmaka"
+	],
+	"url": "https://www.mediawiki.org/wiki/Extension:RemoteWiki",
+	"descriptionmsg": "remotewiki-desc",
+	"license-name": "MIT",
+	"requires": {
+		"MediaWiki": ">= 1.35.0"
+	},
+	"type": "other",
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\RemoteWiki\\": "src/"
+	},
+	"Hooks": {
+		"ParserFirstCallInit": "addParserFunctions",
+		"UnitTestsList": "addUnitTests"
+	},
+	"HookHandlers": {
+		"addParserFunctions": {
+			"class": "MediaWiki\\Extension\\RemoteWiki\\Hooks\\ParserFirstCallInit"
+		},
+		"addUnitTests": {
+			"class": "MediaWiki\\Extension\\RemoteWiki\\Hooks\\UnitTestsList"
+		}
+	},
+	"config": {
+		"RemoteWikiBotPasswords": {
+			"value": [],
+			"description": "Stores auth data for remote private wikis"
+		},
+		"RemoteWikiCacheTTL": {
+			"value": 0,
+			"description": "Cache TTL in seconds"
+		}
+	},
+	"ExtensionMessagesFiles": {
+		"RemoteWikiMagic": "RemoteWiki.magic.php"
+	},
+	"MessagesDirs": {
+		"RemoteWiki": [
+			"i18n"
+		]
+	},
+	"ResourceModules": {},
+	"ResourceFileModulePaths": {
+		"localBasePath": "",
+		"remoteExtPath": "RemoteWiki"
+	},
+	"ConfigRegistry": {
+		"RemoteWiki": "GlobalVarConfig::newInstance"
+	},
+	"manifest_version": 2
+}

@@ -1,0 +1,21 @@
+{
+	"require": {
+		"ext-zip": "*",
+		"addwiki/mediawiki-api-base": "^3.0"
+	},
+	"require-dev": {
+		"mediawiki/minus-x": "1.1.0",
+		"estahn/phpunit-json-assertions": "^3.0"
+	},
+	"scripts": {
+		"test": [
+			"parallel-lint . --exclude vendor --exclude node_modules",
+			"phpcs -p -s",
+			"minus-x check ."
+		],
+		"fix": [
+			"minus-x fix .",
+			"phpcbf"
+		]
+	}
+}
