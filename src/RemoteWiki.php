@@ -6,6 +6,7 @@ use Addwiki\Mediawiki\Api\Client\Action\Exception\UsageException;
 use Addwiki\Mediawiki\Api\Client\Action\Request\ActionRequest;
 use Addwiki\Mediawiki\Api\Client\Auth\UserAndPassword;
 use Addwiki\Mediawiki\Api\Client\MediaWiki;
+use Exception;
 use MediaWiki\MediaWikiServices;
 use Parser;
 
@@ -112,15 +113,19 @@ class RemoteWiki {
 		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$reqKey = $cache->makeKey( $api->action()->getApiUrl(), 'version' );
 		$value = $cache->get( $reqKey );
+
 		if ( $value ) {
 			return $value;
 		}
+
 		$versionReq = ActionRequest::simpleGet(
-			'query', [
+			'query',
+			[
 				'meta' => 'siteinfo',
 				'siprop' => 'general'
 			]
 		);
+
 		try {
 			$result = $api->action()->request( $versionReq );
 			$generator = $result['query']['general']['generator'];
@@ -130,7 +135,7 @@ class RemoteWiki {
 			}
 			$cache->set( $reqKey, $version, $this->config->get( 'RemoteWikiCacheTTL' ) );
 			return $version;
-		} catch ( UsageException $e ) {
+		} catch ( Exception $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
 		}
 	}
