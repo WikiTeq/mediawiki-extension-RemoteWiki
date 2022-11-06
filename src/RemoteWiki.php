@@ -113,8 +113,10 @@ class RemoteWiki {
 		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$reqKey = $cache->makeKey( $api->action()->getApiUrl(), 'version' );
 		$value = $cache->get( $reqKey );
+		$cacheTTL = $this->config->get( 'RemoteWikiCacheTTL' );
 
-		if ( $value ) {
+		// Either return cached value or skip it if cache TTL is equal to zero
+		if ( $cacheTTL != 0 && $value ) {
 			return $value;
 		}
 
@@ -133,7 +135,7 @@ class RemoteWiki {
 			if ( empty( $version ) ) {
 				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
 			}
-			$cache->set( $reqKey, $version, $this->config->get( 'RemoteWikiCacheTTL' ) );
+			$cache->set( $reqKey, $version, $cacheTTL );
 			return $version;
 		} catch ( Exception $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';

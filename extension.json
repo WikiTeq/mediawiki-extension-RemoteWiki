@@ -33,8 +33,8 @@
 			"description": "Stores auth data for remote private wikis"
 		},
 		"RemoteWikiCacheTTL": {
-			"value": 0,
-			"description": "Cache TTL in seconds"
+			"value": 3600,
+			"description": "Cache TTL in seconds, set to zero to disable the cache"
 		},
 		"RemoteWikiVerbose": {
 			"value": false,
