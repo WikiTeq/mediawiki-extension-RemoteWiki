@@ -125,10 +125,13 @@ class RemoteWiki {
 			$result = $api->action()->request( $versionReq );
 			$generator = $result['query']['general']['generator'];
 			$version = preg_replace( '/[^0-9\.]/', '', $generator );
+			if ( empty( $version ) ) {
+				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
+			}
 			$cache->set( $reqKey, $version, $this->config->get( 'RemoteWikiCacheTTL' ) );
 			return $version;
 		} catch ( UsageException $e ) {
-			return $e->getMessage();
+			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
 		}
 	}
 

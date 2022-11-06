@@ -35,6 +35,10 @@
 		"RemoteWikiCacheTTL": {
 			"value": 0,
 			"description": "Cache TTL in seconds"
+		},
+		"RemoteWikiVerbose": {
+			"value": false,
+			"description": "If to print out raw error messages, when set to false will output a blank string on error"
 		}
 	},
 	"ExtensionMessagesFiles": {
