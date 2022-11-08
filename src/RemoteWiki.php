@@ -153,9 +153,13 @@ class RemoteWiki {
 		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$reqKey = $cache->makeKey( $api->action()->getApiUrl(), 'extensions' );
 		$value = $cache->get( $reqKey );
-		if ( $value ) {
+		$cacheTTL = $this->config->get( 'RemoteWikiCacheTTL' );
+
+		// Either return cached value or skip it if cache TTL is equal to zero
+		if ( $cacheTTL != 0 && $value ) {
 			return $value;
 		}
+
 		$versionReq = ActionRequest::simpleGet(
 			'query', [
 				'meta' => 'siteinfo',
@@ -165,16 +169,19 @@ class RemoteWiki {
 		try {
 			$result = $api->action()->request( $versionReq );
 			$extensions = $result['query']['extensions'];
+			if ( empty( $extensions ) ) {
+				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
+			}
 			// generate extension:version pairs
 			$ret = [];
 			foreach ( $extensions as $extension ) {
 				$ret[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] );
 			}
 			$ret = implode( ',', $ret );
-			$cache->set( $reqKey, $ret, $this->config->get( 'RemoteWikiCacheTTL' ) );
+			$cache->set( $reqKey, $ret, $cacheTTL );
 			return $ret;
-		} catch ( UsageException $e ) {
-			return $e->getMessage();
+		} catch ( Exception $e ) {
+			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
 		}
 	}
 
