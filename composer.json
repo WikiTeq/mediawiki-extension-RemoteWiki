@@ -1,4 +1,6 @@
 {
+	"name": "mediawiki/remote-wiki",
+	"type": "mediawiki-extension",
 	"require": {
 		"ext-zip": "*",
 		"addwiki/mediawiki-api-base": "^3.0"
