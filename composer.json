@@ -1,7 +1,7 @@
 {
 	"require": {
 		"ext-zip": "*",
-		"addwiki/mediawiki-api-base": "^3.0"
+		"addwiki/mediawiki-api-base": "dev-timeout"
 	},
 	"require-dev": {
 		"mediawiki/minus-x": "1.1.0",
@@ -17,5 +17,11 @@
 			"minus-x fix .",
 			"phpcbf"
 		]
-	}
+	},
+	"repositories": [
+		{
+			"type": "vcs",
+			"url": "https://github.com/WikiTeq/mediawiki-api-base.git"
+		}
+	]
 }

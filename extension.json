@@ -39,6 +39,10 @@
 		"RemoteWikiVerbose": {
 			"value": false,
 			"description": "If to print out raw error messages, when set to false will output a blank string on error"
+		},
+		"RemoteWikiTimeout": {
+			"value": 60,
+			"description": "Requests timeout, set to zero to have an unlimited timout"
 		}
 	},
 	"ExtensionMessagesFiles": {

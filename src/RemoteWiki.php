@@ -97,7 +97,10 @@ class RemoteWiki {
 		if ( array_key_exists( $test, $botPasswords ) ) {
 			$auth = new UserAndPassword( $botPasswords[$test]['username'], $botPasswords[$test]['password'] );
 		}
-		$api = MediaWiki::newFromEndpoint( $endPoint, $auth );
+		$api = MediaWiki::newFromEndpoint( $endPoint, $auth, [
+			'timeout' => (int)$this->config->get( 'RemoteWikiTimeout' ),
+			'connect_timeout' => (int)$this->config->get( 'RemoteWikiTimeout' )
+		] );
 		$this->apis[$test] = $api;
 		return $api;
 	}
