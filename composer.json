@@ -25,5 +25,6 @@
 			"type": "vcs",
 			"url": "https://github.com/WikiTeq/mediawiki-api-base.git"
 		}
-	]
+	],
+	"minimum-stability": "dev"
 }
