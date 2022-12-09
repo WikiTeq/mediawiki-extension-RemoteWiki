@@ -100,7 +100,8 @@ class RemoteWiki {
 		$api = MediaWiki::newFromEndpoint( $endPoint, $auth, [
 			'timeout' => (int)$this->config->get( 'RemoteWikiTimeout' ),
 			'connect_timeout' => (int)$this->config->get( 'RemoteWikiTimeout' ),
-			'noretry' => true
+			'noretry' => true,
+			'allow_redirects' => [ 'strict' => true ]
 		] );
 		$this->apis[$test] = $api;
 		return $api;
