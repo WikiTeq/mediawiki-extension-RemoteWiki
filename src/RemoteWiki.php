@@ -180,7 +180,7 @@ class RemoteWiki {
 			// generate extension:version pairs
 			$ret = [];
 			foreach ( $extensions as $extension ) {
-				$ret[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] );
+				$ret[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
 			}
 			$ret = implode( ',', $ret );
 			$cache->set( $reqKey, $ret, $cacheTTL );
