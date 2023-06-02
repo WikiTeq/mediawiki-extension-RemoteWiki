@@ -14,13 +14,21 @@ use Parser;
 
 class ParserFirstCallInit implements ParserFirstCallInitHook {
 
+	/** @var RemoteWiki */
+	private $remoteWiki;
+
+	/** @param RemoteWiki $remoteWiki */
+	public function __construct( RemoteWiki $remoteWiki ) {
+		$this->remoteWiki = $remoteWiki;
+	}
+
 	/**
 	 * @inheritDoc
 	 * @throws \MWException
 	 */
 	public function onParserFirstCallInit( $parser ) {
 		$parser->setFunctionHook( 'remote_version', function () {
-			return RemoteWiki::getInstance()->remoteVersion( ...func_get_args() );
+			return $this->remoteWiki->remoteVersion( ...func_get_args() );
 		} );
 	}
 

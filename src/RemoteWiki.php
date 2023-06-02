@@ -6,30 +6,34 @@ use Addwiki\Mediawiki\Api\Client\Action\Exception\UsageException;
 use Addwiki\Mediawiki\Api\Client\Action\Request\ActionRequest;
 use Addwiki\Mediawiki\Api\Client\Auth\UserAndPassword;
 use Addwiki\Mediawiki\Api\Client\MediaWiki;
+use Config;
 use Exception;
-use MediaWiki\MediaWikiServices;
 use Parser;
+use WANObjectCache;
 
 /**
- * Singleton
+ * RemoteWiki service, should be retrieved from MediaWikiServices
  */
 class RemoteWiki {
 
-	public static ?RemoteWiki $instance = null;
-
 	/** @var MediaWiki[] */
 	private $apis = [];
-	private $config = null;
 
-	public static function getInstance(): RemoteWiki {
-		if ( self::$instance === null ) {
-			self::$instance = new self();
-		}
-		return self::$instance;
-	}
+	/** @var Config */
+	private $config;
+	/** @var WANObjectCache */
+	private $cache;
 
-	public function __construct() {
-		$this->config = MediaWikiServices::getInstance()->getConfigFactory()->makeConfig( 'RemoteWiki' );
+	/**
+	 * @param Config $config
+	 * @param WANObjectCache $cache
+	 */
+	public function __construct(
+		Config $config,
+		WANObjectCache $cache
+	) {
+		$this->config = $config;
+		$this->cache = $cache;
 	}
 
 	/**
@@ -115,9 +119,8 @@ class RemoteWiki {
 	 * @return string|null
 	 */
 	private function getGenerator( MediaWiki $api ): ?string {
-		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
-		$reqKey = $cache->makeKey( $api->action()->getApiUrl(), 'version' );
-		$value = $cache->get( $reqKey );
+		$reqKey = $this->cache->makeKey( $api->action()->getApiUrl(), 'version' );
+		$value = $this->cache->get( $reqKey );
 		$cacheTTL = $this->config->get( 'RemoteWikiCacheTTL' );
 
 		// Either return cached value or skip it if cache TTL is equal to zero
@@ -140,7 +143,7 @@ class RemoteWiki {
 			if ( empty( $version ) ) {
 				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
 			}
-			$cache->set( $reqKey, $version, $cacheTTL );
+			$this->cache->set( $reqKey, $version, $cacheTTL );
 			return $version;
 		} catch ( Exception $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
@@ -155,9 +158,8 @@ class RemoteWiki {
 	 * @return string|null
 	 */
 	private function getExtensions( MediaWiki $api ): ?string {
-		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
-		$reqKey = $cache->makeKey( $api->action()->getApiUrl(), 'extensions' );
-		$value = $cache->get( $reqKey );
+		$reqKey = $this->cache->makeKey( $api->action()->getApiUrl(), 'extensions' );
+		$value = $this->cache->get( $reqKey );
 		$cacheTTL = $this->config->get( 'RemoteWikiCacheTTL' );
 
 		// Either return cached value or skip it if cache TTL is equal to zero
@@ -183,7 +185,7 @@ class RemoteWiki {
 				$ret[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
 			}
 			$ret = implode( ',', $ret );
-			$cache->set( $reqKey, $ret, $cacheTTL );
+			$this->cache->set( $reqKey, $ret, $cacheTTL );
 			return $ret;
 		} catch ( Exception $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';

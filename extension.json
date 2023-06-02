@@ -16,17 +16,19 @@
 		"MediaWiki\\Extension\\RemoteWiki\\": "src/"
 	},
 	"Hooks": {
-		"ParserFirstCallInit": "addParserFunctions",
-		"UnitTestsList": "addUnitTests"
+		"ParserFirstCallInit": "addParserFunctions"
 	},
 	"HookHandlers": {
 		"addParserFunctions": {
-			"class": "MediaWiki\\Extension\\RemoteWiki\\Hooks\\ParserFirstCallInit"
-		},
-		"addUnitTests": {
-			"class": "MediaWiki\\Extension\\RemoteWiki\\Hooks\\UnitTestsList"
+			"class": "MediaWiki\\Extension\\RemoteWiki\\Hooks\\ParserFirstCallInit",
+			"services": [
+				"RemoteWiki"
+			]
 		}
 	},
+	"ServiceWiringFiles": [
+		"src/ServiceWiring.php"
+	],
 	"config": {
 		"RemoteWikiBotPasswords": {
 			"value": [],
