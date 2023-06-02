@@ -2,7 +2,7 @@
 
 namespace MediaWiki\Extension\RemoteWiki\Tests\Integration;
 
-use MediaWiki\Extension\RemoteWiki\RemoteWiki;
+use MediaWiki\MediaWikiServices;
 use MediaWikiIntegrationTestCase;
 use Parser;
 
@@ -41,8 +41,7 @@ class RemoteWikiTest extends MediaWikiIntegrationTestCase {
     public function testVersion( string $parameter ) {
         $parser = $this->createNoOpMock( Parser::class );
         $mwEndpoint = 'https://www.mediawiki.org/w/api.php';
-        // Avoid cached APIs too
-        $remote = new RemoteWiki();
+        $remote = MediaWikiServices::getInstance()->getService( 'RemoteWiki' );
 
         $version = $remote->remoteVersion( $parser, $mwEndpoint, $parameter );
         $this->assertRegExp(
@@ -70,8 +69,7 @@ class RemoteWikiTest extends MediaWikiIntegrationTestCase {
     public function testExtensions() {
         $parser = $this->createNoOpMock( Parser::class );
         $mwEndpoint = 'https://www.mediawiki.org/w/api.php';
-        // Avoid cached APIs too
-        $remote = new RemoteWiki();
+        $remote = MediaWikiServices::getInstance()->getService( 'RemoteWiki' );
 
         $extensions = $remote->remoteVersion(
             $parser,
