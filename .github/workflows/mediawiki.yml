@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ "*" ]
+
+jobs:
+  test:
+    name: "PHPUnit: MW ${{ matrix.mw }}, PHP ${{ matrix.php }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # LTS versions 1.35, 1.39
+          - mw: 'REL1_35'
+            php: 7.4
+          - mw: 'REL1_39'
+            php: 7.4
+    runs-on: ubuntu-latest
+    steps:
+      # check out the repository!
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Test extension
+        uses: wikiteq/mediawiki-phpunit-action@master
+        with:
+          type: extension
+          php: ${{ matrix.php }}
+          mwbranch: ${{ matrix.mw }}
+          extension: RemoteWiki
+          testgroup: extension-RemoteWiki
