@@ -177,7 +177,7 @@ class RemoteWiki {
 			$result = $api->action()->request( $versionReq );
 			$extensions = $result['query']['extensions'];
 			if ( empty( $extensions ) ) {
-				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
+				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty extensions response' : '';
 			}
 			// generate extension:version pairs
 			$ret = [];
