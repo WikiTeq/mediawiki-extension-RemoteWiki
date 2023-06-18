@@ -1,0 +1,25 @@
+!! Version 2
+
+# Use the test runner to ensure that the extension is loaded
+!! functionhooks
+remote_version
+!! endfunctionhooks
+
+!! test
+mediawiki.org version - starts with 1.
+!! wikitext
+{{padleft:|2|{{#remote_version:https://www.mediawiki.org/w/api.php}}}}
+!! html
+<p>1.
+</p>
+!! end
+
+!! test
+mediawiki.org version - full version
+!! wikitext
+{{#remote_version:https://www.mediawiki.org/w/api.php}}
+!! html
+<p>1.41
+</p>
+!! end
+
