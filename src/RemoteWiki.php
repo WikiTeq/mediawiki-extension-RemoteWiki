@@ -8,6 +8,7 @@ use Addwiki\Mediawiki\Api\Client\Auth\UserAndPassword;
 use Addwiki\Mediawiki\Api\Client\MediaWiki;
 use Config;
 use Exception;
+use LogicException;
 use Parser;
 use WANObjectCache;
 
@@ -23,6 +24,14 @@ class RemoteWiki {
 	private $config;
 	/** @var WANObjectCache */
 	private $cache;
+
+	/**
+	 * Version number for cached values of extension information - when the
+	 * option to retrieve the URLs of extensions was added the old values were
+	 * no longer valid. Increment this when the 'extensions' cache key values
+	 * change.
+	 */
+	private const EXTENSIONS_CACHE_VERSION = 2;
 
 	/**
 	 * @param Config $config
@@ -51,7 +60,10 @@ class RemoteWiki {
 		$result = '';
 		switch ( $type ) {
 			case 'extensions':
-				$result = $this->getExtensions( $api );
+				$result = $this->getExtensionVersions( $api );
+				break;
+			case 'extension-urls':
+				$result = $this->getExtensionURLs( $api );
 				break;
 			case 'version':
 			default:
@@ -154,11 +166,56 @@ class RemoteWiki {
 	 * Get extensions versions
 	 *
 	 * @param MediaWiki $api
-	 *
-	 * @return string|null
+	 * @return string
 	 */
-	private function getExtensions( MediaWiki $api ): ?string {
-		$reqKey = $this->cache->makeKey( $api->action()->getApiUrl(), 'extensions' );
+	private function getExtensionVersions( MediaWiki $api ): string {
+		$result = $this->getExtensionsInfo( $api );
+		if ( is_string( $result ) ) {
+			// There was an error
+			return $result;
+		} else if (
+			is_array( $result )
+			&& array_key_exists( 'versions', $result )
+		) {
+			return $result['versions'];
+		} else {
+			throw new LogicException( 'Invalid getExtensionsInfo() result' );
+		}
+	}
+
+	/**
+	 * Get extensions urls
+	 *
+	 * @param MediaWiki $api
+	 * @return string
+	 */
+	private function getExtensionURLs( MediaWiki $api ): string {
+		$result = $this->getExtensionsInfo( $api );
+		if ( is_string( $result ) ) {
+			// There was an error
+			return $result;
+		} else if (
+			is_array( $result )
+			&& array_key_exists( 'urls', $result )
+		) {
+			return $result['urls'];
+		} else {
+			throw new LogicException( 'Invalid getExtensionsInfo() result' );
+		}
+	}
+
+	/**
+	 * Get extensions information (both versions and URLs)
+	 *
+	 * @param MediaWiki $api
+	 * @return array|string
+	 */
+	private function getExtensionsInfo( MediaWiki $api ) {
+		$reqKey = $this->cache->makeKey(
+			$api->action()->getApiUrl(),
+			'extensions',
+			self::EXTENSIONS_CACHE_VERSION
+		);
 		$value = $this->cache->get( $reqKey );
 		$cacheTTL = $this->config->get( 'RemoteWikiCacheTTL' );
 
@@ -179,14 +236,23 @@ class RemoteWiki {
 			if ( empty( $extensions ) ) {
 				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty extensions response' : '';
 			}
-			// generate extension:version pairs
-			$ret = [];
+			// generate extension:version pairs and extension:URL pairs
+			$versions = [];
+			$urls = [];
 			foreach ( $extensions as $extension ) {
-				$ret[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
+				$versions[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
+				$urls[] = $extension['name'] . ':' . ( $extension['url'] ?? '?' );
 			}
-			$ret = implode( ',', $ret );
-			$this->cache->set( $reqKey, $ret, $cacheTTL );
-			return $ret;
+			// URLs cannot be separated by a comma, that is a valid URL
+			// character, see
+			// https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
+			// instead we will use a |, which isn't a valid part of a URL
+			$result = [
+				'versions' => implode( ',', $versions ),
+				'urls' => implode( '|', $urls ),
+			];
+			$this->cache->set( $reqKey, $result, $cacheTTL );
+			return $result;
 		} catch ( Exception $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
 		}

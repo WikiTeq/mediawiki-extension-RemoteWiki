@@ -135,7 +135,7 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 
     /**
      * @covers ::getGenerator
-     * @dataProvider provideTestCache
+     * @dataProvider provideTestGetGenerator_cache
      */
     public function testGetGenerator_cache( int $ttl, int $apiCalls ) {
         $remote = $this->getRemote( [ 'RemoteWikiCacheTTL' => $ttl ] );
@@ -158,6 +158,11 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
             $remote->remoteVersion( $parser, self::MW_API ),
             'Cache usage'
         );
+    }
+
+    public static function provideTestGetGenerator_cache() {
+        yield 'Cache is used, queried once' => [ 3600, 1 ];
+        yield 'Cache is not used, queried twice' => [ 0, 2 ];
     }
 
     /**
@@ -187,7 +192,7 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 
     /**
      * @covers ::getGenerator
-     * @dataProvider provideTestExceptions
+     * @dataProvider provideTestGetGenerator_error
      */
     public function testGetGenerator_error( bool $verbose, string $expected ) {
         $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
@@ -203,20 +208,16 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
         );
     }
     
-    // Used for both version and extensions    
-    public static function provideTestCache() {
-        yield 'Cache is used, queried once' => [ 3600, 1 ];
-        yield 'Cache is not used, queried twice' => [ 0, 2 ];
-    }
-
-    public static function provideTestExceptions() {
+    public static function provideTestGetGenerator_error() {
         yield 'Verbose' => [ true, 'TESTING!!!' ];
         yield 'Non-verbose' => [ false, '' ];
     }
 
     /**
-     * @covers ::getExtensions
-     * @dataProvider provideTestCache
+     * @covers ::getExtensionsInfo
+     * @covers ::getExtensionVersions
+     * @covers ::getExtensionURLs
+     * @dataProvider provideTestGetExtensions_cache
      */
     public function testGetExtensions_cache( int $ttl, int $apiCalls ) {
         $remote = $this->getRemote( [ 'RemoteWikiCacheTTL' => $ttl ] );
@@ -226,8 +227,8 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
             ->willReturn( [
                 'query' => [
                     'extensions' => [
-                        [ 'name' => 'foo', 'version' => '123' ],
-                        [ 'name' => 'bar', 'vcs-version' => '456' ],
+                        [ 'name' => 'foo', 'version' => '123', 'url' => 'abc' ],
+                        [ 'name' => 'bar', 'vcs-version' => '456', 'url' => 'xyz' ],
                         [ 'name' => 'baz' ],
                     ]
                 ]
@@ -243,13 +244,29 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
             $remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
             'Cache usage'
         );
+        $this->assertSame(
+            'foo:abc|bar:xyz|baz:?',
+            $remote->remoteVersion( $parser, self::MW_API, 'extension-urls' ),
+            'Cache usage'
+        );
+    }
+
+    public static function provideTestGetExtensions_cache() {
+        yield 'Cache is used, queried once' => [ 3600, 1 ];
+        yield 'Cache is not used, queried three times' => [ 0, 3 ];
     }
 
     /**
-     * @covers ::getExtensions
+     * @covers ::getExtensionsInfo
+     * @covers ::getExtensionVersions
+     * @covers ::getExtensionURLs
      * @dataProvider provideTestGetExtensions_empty
      */
-    public function testGetExtensions_empty( bool $verbose, string $expected ) {
+    public function testGetExtensions_empty(
+        bool $verbose,
+        string $type,
+        string $expected
+    ) {
         $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
         $actionApi = $this->installApi( $remote, self::MW_API );
         $actionApi->expects( $this->once() )
@@ -258,21 +275,30 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
         $parser = $this->createNoOpMock( Parser::class );
         $this->assertSame(
             $expected,
-            $remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
+            $remote->remoteVersion( $parser, self::MW_API, $type ),
             'Empty extensions'
         );
     }
     
     public static function provideTestGetExtensions_empty() {
-        yield 'Verbose' => [ true, 'ERROR: empty extensions response' ];
-        yield 'Non-verbose' => [ false, '' ];
+        $error = 'ERROR: empty extensions response';
+        yield 'Verbose versions' => [ true, 'extensions', $error ];
+        yield 'Verbose URLs' => [ true, 'extension-urls', $error ];
+        yield 'Non-verbose versions' => [ false, 'extensions', '' ];
+        yield 'Non-verbose URLs' => [ false, 'extension-urls', '' ];
     }
 
     /**
-     * @covers ::getExtensions
-     * @dataProvider provideTestExceptions
+     * @covers ::getExtensionsInfo
+     * @covers ::getExtensionVersions
+     * @covers ::getExtensionURLs
+     * @dataProvider provideTestGetExtensions_error
      */
-    public function testGetExtensions_error( bool $verbose, string $expected ) {
+    public function testGetExtensions_error(
+        bool $verbose,
+        string $type,
+        string $expected
+    ) {
         $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
         $actionApi = $this->installApi( $remote, self::MW_API );
         $actionApi->expects( $this->once() )
@@ -281,9 +307,16 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
         $parser = $this->createNoOpMock( Parser::class );
         $this->assertSame(
             $expected,
-            $remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
+            $remote->remoteVersion( $parser, self::MW_API, $type ),
             'Error output'
         );
+    }
+    
+    public static function provideTestGetExtensions_error() {
+        yield 'Verbose versions' => [ true, 'extensions', 'TESTING!!!' ];
+        yield 'Verbose URLs' => [ true, 'extension-urls', 'TESTING!!!' ];
+        yield 'Non-verbose versions' => [ false, 'extensions', '' ];
+        yield 'Non-verbose URLs' => [ false, 'extension-urls', '' ];
     }
 
     /**

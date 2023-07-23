@@ -64,9 +64,10 @@ class RemoteWikiTest extends MediaWikiIntegrationTestCase {
      * that might be the reason.
      * 
      * @covers ::remoteVersion
-     * @covers ::getExtensions
+     * @covers ::getExtensionVersions
+     * @covers ::getExtensionsInfo
      */
-    public function testExtensions() {
+    public function testExtensionVersions() {
         $parser = $this->createNoOpMock( Parser::class );
         $mwEndpoint = 'https://www.mediawiki.org/w/api.php';
         $remote = MediaWikiServices::getInstance()->getService( 'RemoteWiki' );
@@ -80,6 +81,39 @@ class RemoteWikiTest extends MediaWikiIntegrationTestCase {
             'Math:',
             $extensions,
             'Math version retrieved'
+        );
+        $this->assertStringNotContainsString(
+            'Math:http',
+            $extensions,
+            'Math version is not a URL'
+        );
+    }
+
+    /**
+     * This test assumes that MediaWiki.org has the 'Math' extension installed
+     * and enabled, and the URL for that extension begins with http (i.e. is
+     * set)- since the extension is bundled with MediaWiki it is unlikely that
+     * it will become disabled, but if this test starts failing that might be
+     * the reason.
+     * 
+     * @covers ::remoteVersion
+     * @covers ::getExtensionURLs
+     * @covers ::getExtensionsInfo
+     */
+    public function testExtensionUrls() {
+        $parser = $this->createNoOpMock( Parser::class );
+        $mwEndpoint = 'https://www.mediawiki.org/w/api.php';
+        $remote = MediaWikiServices::getInstance()->getService( 'RemoteWiki' );
+
+        $extensions = $remote->remoteVersion(
+            $parser,
+            $mwEndpoint,
+            'extension-urls'
+        );
+        $this->assertStringContainsString(
+            'Math:http',
+            $extensions,
+            'Math URL retrieved'
         );
     }
 
