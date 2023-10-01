@@ -7,19 +7,11 @@ remote_version
 
 !! test
 mediawiki.org version - starts with 1.
+Used to ensure that the parser hook is registered
 !! wikitext
 {{padleft:|2|{{#remote_version:https://www.mediawiki.org/w/api.php}}}}
 !! html
 <p>1.
-</p>
-!! end
-
-!! test
-mediawiki.org version - full version
-!! wikitext
-{{#remote_version:https://www.mediawiki.org/w/api.php}}
-!! html
-<p>1.41
 </p>
 !! end
 
