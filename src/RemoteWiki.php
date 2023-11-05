@@ -234,12 +234,16 @@ class RemoteWiki {
 			$result = $api->action()->request( $versionReq );
 			$extensions = $result['query']['extensions'];
 			if ( empty( $extensions ) ) {
-				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty extensions response' : '';
+				return $this->config->get( 'RemoteWikiVerbose' ) ? 'ERROR: empty extensions response' : '';
 			}
 			// generate extension:version pairs and extension:URL pairs
 			$versions = [];
 			$urls = [];
 			foreach ( $extensions as $extension ) {
+				// filter out skins
+				if ( isset( $extension['type'] ) && $extension['type'] === 'skin' ) {
+					continue;
+				}
 				$versions[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
 				$urls[] = $extension['name'] . ':' . ( $extension['url'] ?? '?' );
 			}
@@ -254,7 +258,7 @@ class RemoteWiki {
 			$this->cache->set( $reqKey, $result, $cacheTTL );
 			return $result;
 		} catch ( Exception $e ) {
-			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
+			return $this->config->get( 'RemoteWikiVerbose' ) ? $e->getMessage() : '';
 		}
 	}
 
