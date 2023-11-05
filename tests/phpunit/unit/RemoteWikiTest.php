@@ -368,12 +368,12 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 		yield 'Verbose versions' => [
 			true,
 			'extensions',
-			'TESTING!!!'
+			'ERROR: empty extensions response'
 		];
 		yield 'Verbose URLs' => [
 			true,
 			'extension-urls',
-			'TESTING!!!'
+			'ERROR: empty extensions response'
 		];
 		yield 'Non-verbose versions' => [
 			false,
