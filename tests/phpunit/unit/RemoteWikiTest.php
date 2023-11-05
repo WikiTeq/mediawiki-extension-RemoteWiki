@@ -22,335 +22,407 @@ use Wikimedia\TestingAccessWrapper;
  */
 class RemoteWikiTest extends MediaWikiUnitTestCase {
 
-    private const MW_API = 'https://www.mediawiki.org/w/api.php';
+	private const MW_API = 'https://www.mediawiki.org/w/api.php';
 
-    /**
-     * Get a RemoteWiki instance with the given configuration (falling back to
-     * reasonable defaults).
-     *
-     * @param array $config
-     * @return TestingAccessWrapper wrapping RemoteWiki
-     */
-    private function getRemote( array $config = [] ): TestingAccessWrapper {
-        $defaults = [
-            'RemoteWikiBotPasswords' => [],
-            'RemoteWikiCacheTTL' => 3600,
-            'RemoteWikiVerbose' => true,
-            'RemoteWikiTimeout' => 60,
-        ];
-        $remote = new RemoteWiki(
-            new HashConfig( $config + $defaults ),
-            new WANObjectCache( [ 'cache' => new HashBagOStuff() ] )
-        );
-        return TestingAccessWrapper::newFromObject( $remote );
-    }
+	/**
+	 * Get a RemoteWiki instance with the given configuration (falling back to
+	 * reasonable defaults).
+	 *
+	 * @param array $config
+	 *
+	 * @return TestingAccessWrapper wrapping RemoteWiki
+	 */
+	private function getRemote( array $config = [] ): TestingAccessWrapper {
+		$defaults = [
+			'RemoteWikiBotPasswords' => [],
+			'RemoteWikiCacheTTL' => 3600,
+			'RemoteWikiVerbose' => true,
+			'RemoteWikiTimeout' => 60,
+		];
+		$remote = new RemoteWiki(
+			new HashConfig( $config + $defaults ), new WANObjectCache( [ 'cache' => new HashBagOStuff() ] )
+		);
 
-    /**
-     * @covers ::validateEndpoint
-     * @dataProvider provideValidateEndpoint
-     */
-    public function testValidateEndpoint( string $endPoint, bool $expected ) {
-        $this->assertSame(
-            $expected,
-            $this->getRemote()->validateEndpoint( $endPoint )
-        );
-    }
+		return TestingAccessWrapper::newFromObject( $remote );
+	}
 
-    public static function provideValidateEndpoint() {
-        yield 'empty string' => [ '', false ];
-        // It took a while to find something that parse_url() will reject;
-        // the string ':' should be rejected per PHP bug #55399
-        yield 'parse_url returns false' => [ ':', false ];
-        // The string '?' is accepted by parse_url() but not FILTER_VALIDATE_URL
-        yield 'filter_var returns false' => [ '?', false ];
-        yield 'wiki endpoint' => [ 'https://www.mediawiki.org/w/api.php', true ];
-        yield 'valid url' => [ 'https://example.com', true ];
-    }
+	/**
+	 * @covers ::validateEndpoint
+	 * @dataProvider provideValidateEndpoint
+	 */
+	public function testValidateEndpoint( string $endPoint, bool $expected ) {
+		$this->assertSame(
+			$expected,
+			$this->getRemote()->validateEndpoint( $endPoint )
+		);
+	}
 
-    /**
-     * @covers ::getWikiApi
-     */
-    public function testGetWikiApi_cache() {
-        $remote = $this->getRemote();
-        $firstApi = $remote->getWikiApi( '//www.mediawiki.org/w/api.php' );
-        $secondApi = $remote->getWikiApi( '//www.mediawiki.org/w/api.php' );
-        $this->assertSame( $firstApi, $secondApi, 'Api instances are reused' );
-        $thirdApi = $remote->getWikiApi( 'https://www.mediawiki.org/w/api.php' );
-        $this->assertSame(
-            $firstApi,
-            $thirdApi,
-            'Api caching ignores scheme'
-        );
-        $fourthApi = $remote->getWikiApi( 'https://en.wikipedia.org/w/api.php' );
-        $this->assertNotSame(
-            $firstApi,
-            $fourthApi,
-            'Api caching handles multiple endpoints'
-        );
-    }
+	public static function provideValidateEndpoint() {
+		yield 'empty string' => [
+			'',
+			false
+		];
+		// It took a while to find something that parse_url() will reject;
+		// the string ':' should be rejected per PHP bug #55399
+		yield 'parse_url returns false' => [
+			':',
+			false
+		];
+		// The string '?' is accepted by parse_url() but not FILTER_VALIDATE_URL
+		yield 'filter_var returns false' => [
+			'?',
+			false
+		];
+		yield 'wiki endpoint' => [
+			'https://www.mediawiki.org/w/api.php',
+			true
+		];
+		yield 'valid url' => [
+			'https://example.com',
+			true
+		];
+	}
 
-    /**
-     * @covers ::getWikiApi
-     */
-    public function testGetWikiApi_config() {
-        $settings = [
-            'RemoteWikiBotPasswords' => [
-                'www.mediawiki.org/w/api.php' => [
-                    'username' => 'Foo',
-                    'password' => 'Bar'
-                ],
-            ],
-            'RemoteWikiTimeout' => 173,
-        ];
-        $remote = $this->getRemote( $settings );
-        $enwikiApi = $remote->getWikiApi( '//en.wikipedia.org/w/api.php' );
-        // Check timeout and authentication
-        $enwikiApiAccess = TestingAccessWrapper::newFromObject( $enwikiApi );
-        $this->assertSame(
-            173,
-            $enwikiApiAccess->config['timeout'],
-            'Timeout configuration is used for `timeout`'
-        );
-        $this->assertSame(
-            173,
-            $enwikiApiAccess->config['connect_timeout'],
-            'Timeout configuration is used for `connect_timeout`'
-        );
-        $this->assertInstanceOf(
-            NoAuth::class,
-            $enwikiApiAccess->auth,
-            'Wikis can be accessed without bot passwords'
-        );
+	/**
+	 * @covers ::getWikiApi
+	 */
+	public function testGetWikiApi_cache() {
+		$remote = $this->getRemote();
+		$firstApi = $remote->getWikiApi( '//www.mediawiki.org/w/api.php' );
+		$secondApi = $remote->getWikiApi( '//www.mediawiki.org/w/api.php' );
+		$this->assertSame( $firstApi, $secondApi, 'Api instances are reused' );
+		$thirdApi = $remote->getWikiApi( 'https://www.mediawiki.org/w/api.php' );
+		$this->assertSame(
+			$firstApi,
+			$thirdApi,
+			'Api caching ignores scheme'
+		);
+		$fourthApi = $remote->getWikiApi( 'https://en.wikipedia.org/w/api.php' );
+		$this->assertNotSame(
+			$firstApi,
+			$fourthApi,
+			'Api caching handles multiple endpoints'
+		);
+	}
 
-        $mwApi = $remote->getWikiApi( '//www.mediawiki.org/w/api.php' );
-        $mwAuth = TestingAccessWrapper::newFromObject( $mwApi )->auth;
-        $this->assertInstanceOf(
-            UserAndPassword::class,
-            $mwAuth,
-            'Bot passwords used if configured'
-        );
-        $this->assertSame( 'Foo', $mwAuth->getUsername(), 'Auth username' );
-        $this->assertSame( 'Bar', $mwAuth->getPassword(), 'Auth password' );
-    }
+	/**
+	 * @covers ::getWikiApi
+	 */
+	public function testGetWikiApi_config() {
+		$settings = [
+			'RemoteWikiBotPasswords' => [
+				'www.mediawiki.org/w/api.php' => [
+					'username' => 'Foo',
+					'password' => 'Bar'
+				],
+			],
+			'RemoteWikiTimeout' => 173,
+		];
+		$remote = $this->getRemote( $settings );
+		$enwikiApi = $remote->getWikiApi( '//en.wikipedia.org/w/api.php' );
+		// Check timeout and authentication
+		$enwikiApiAccess = TestingAccessWrapper::newFromObject( $enwikiApi );
+		$this->assertSame(
+			173,
+			$enwikiApiAccess->config['timeout'],
+			'Timeout configuration is used for `timeout`'
+		);
+		$this->assertSame(
+			173,
+			$enwikiApiAccess->config['connect_timeout'],
+			'Timeout configuration is used for `connect_timeout`'
+		);
+		$this->assertInstanceOf(
+			NoAuth::class,
+			$enwikiApiAccess->auth,
+			'Wikis can be accessed without bot passwords'
+		);
 
-    /**
-     * @covers ::getGenerator
-     * @dataProvider provideTestGetGenerator_cache
-     */
-    public function testGetGenerator_cache( int $ttl, int $apiCalls ) {
-        $remote = $this->getRemote( [ 'RemoteWikiCacheTTL' => $ttl ] );
-        $actionApi = $this->installApi( $remote, self::MW_API );
-        $actionApi->expects( $this->exactly( $apiCalls ) )
-            ->method( 'request' )
-            ->willReturn( [
-                'query' => [
-                    'general' => [ 'generator' => 'MediaWiki 1.41.0-wmf.123', ]
-                ]
-            ] );
-        $parser = $this->createNoOpMock( Parser::class );
-        $this->assertSame(
-            '1.41.0.123',
-            $remote->remoteVersion( $parser, self::MW_API ),
-            'Version is fetched'
-        );
-        $this->assertSame(
-            '1.41.0.123',
-            $remote->remoteVersion( $parser, self::MW_API ),
-            'Cache usage'
-        );
-    }
+		$mwApi = $remote->getWikiApi( '//www.mediawiki.org/w/api.php' );
+		$mwAuth = TestingAccessWrapper::newFromObject( $mwApi )->auth;
+		$this->assertInstanceOf(
+			UserAndPassword::class,
+			$mwAuth,
+			'Bot passwords used if configured'
+		);
+		$this->assertSame( 'Foo', $mwAuth->getUsername(), 'Auth username' );
+		$this->assertSame( 'Bar', $mwAuth->getPassword(), 'Auth password' );
+	}
 
-    public static function provideTestGetGenerator_cache() {
-        yield 'Cache is used, queried once' => [ 3600, 1 ];
-        yield 'Cache is not used, queried twice' => [ 0, 2 ];
-    }
+	/**
+	 * @covers ::getGenerator
+	 * @dataProvider provideTestGetGenerator_cache
+	 */
+	public function testGetGenerator_cache( int $ttl, int $apiCalls ) {
+		$remote = $this->getRemote( [ 'RemoteWikiCacheTTL' => $ttl ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->exactly( $apiCalls ) )->method( 'request' )->willReturn( [
+				'query' => [
+					'general' => [ 'generator' => 'MediaWiki 1.41.0-wmf.123', ]
+				]
+			] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			'1.41.0.123',
+			$remote->remoteVersion( $parser, self::MW_API ),
+			'Version is fetched'
+		);
+		$this->assertSame(
+			'1.41.0.123',
+			$remote->remoteVersion( $parser, self::MW_API ),
+			'Cache usage'
+		);
+	}
 
-    /**
-     * @covers ::getGenerator
-     * @dataProvider provideTestGetGenerator_empty
-     */
-    public function testGetGenerator_empty( bool $verbose, string $expected ) {
-        $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
-        $actionApi = $this->installApi( $remote, self::MW_API );
-        $actionApi->expects( $this->once() )
-            ->method( 'request' )
-            ->willReturn( 
-                [ 'query' => [ 'general' => [ 'generator' => '', ] ] ]
-            );
-        $parser = $this->createNoOpMock( Parser::class );
-        $this->assertSame(
-            $expected,
-            $remote->remoteVersion( $parser, self::MW_API ),
-            'Empty version'
-        );
-    }
-    
-    public static function provideTestGetGenerator_empty() {
-        yield 'Verbose' => [ true, 'ERROR: empty version response' ];
-        yield 'Non-verbose' => [ false, '' ];
-    }
+	public static function provideTestGetGenerator_cache() {
+		yield 'Cache is used, queried once' => [
+			3600,
+			1
+		];
+		yield 'Cache is not used, queried twice' => [
+			0,
+			2
+		];
+	}
 
-    /**
-     * @covers ::getGenerator
-     * @dataProvider provideTestGetGenerator_error
-     */
-    public function testGetGenerator_error( bool $verbose, string $expected ) {
-        $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
-        $actionApi = $this->installApi( $remote, self::MW_API );
-        $actionApi->expects( $this->once() )
-            ->method( 'request' )
-            ->willThrowException( new Exception( 'TESTING!!!' ) );
-        $parser = $this->createNoOpMock( Parser::class );
-        $this->assertSame(
-            $expected,
-            $remote->remoteVersion( $parser, self::MW_API ),
-            'Error output'
-        );
-    }
-    
-    public static function provideTestGetGenerator_error() {
-        yield 'Verbose' => [ true, 'TESTING!!!' ];
-        yield 'Non-verbose' => [ false, '' ];
-    }
+	/**
+	 * @covers ::getGenerator
+	 * @dataProvider provideTestGetGenerator_empty
+	 */
+	public function testGetGenerator_empty( bool $verbose, string $expected ) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn(
+				[ 'query' => [ 'general' => [ 'generator' => '', ] ] ]
+			);
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API ),
+			'Empty version'
+		);
+	}
 
-    /**
-     * @covers ::getExtensionsInfo
-     * @covers ::getExtensionVersions
-     * @covers ::getExtensionURLs
-     * @dataProvider provideTestGetExtensions_cache
-     */
-    public function testGetExtensions_cache( int $ttl, int $apiCalls ) {
-        $remote = $this->getRemote( [ 'RemoteWikiCacheTTL' => $ttl ] );
-        $actionApi = $this->installApi( $remote, self::MW_API );
-        $actionApi->expects( $this->exactly( $apiCalls ) )
-            ->method( 'request' )
-            ->willReturn( [
-                'query' => [
-                    'extensions' => [
-                        [ 'name' => 'foo', 'version' => '123', 'url' => 'abc' ],
-                        [ 'name' => 'bar', 'vcs-version' => '456', 'url' => 'xyz' ],
-                        [ 'name' => 'baz' ],
-                    ]
-                ]
-            ] );
-        $parser = $this->createNoOpMock( Parser::class );
-        $this->assertSame(
-            'foo:123,bar:456,baz:?',
-            $remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
-            'Extensions are fetched'
-        );
-        $this->assertSame(
-            'foo:123,bar:456,baz:?',
-            $remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
-            'Cache usage'
-        );
-        $this->assertSame(
-            'foo:abc|bar:xyz|baz:?',
-            $remote->remoteVersion( $parser, self::MW_API, 'extension-urls' ),
-            'Cache usage'
-        );
-    }
+	public static function provideTestGetGenerator_empty() {
+		yield 'Verbose' => [
+			true,
+			'ERROR: empty version response'
+		];
+		yield 'Non-verbose' => [
+			false,
+			''
+		];
+	}
 
-    public static function provideTestGetExtensions_cache() {
-        yield 'Cache is used, queried once' => [ 3600, 1 ];
-        yield 'Cache is not used, queried three times' => [ 0, 3 ];
-    }
+	/**
+	 * @covers ::getGenerator
+	 * @dataProvider provideTestGetGenerator_error
+	 */
+	public function testGetGenerator_error( bool $verbose, string $expected ) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willThrowException( new Exception( 'TESTING!!!' ) );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API ),
+			'Error output'
+		);
+	}
 
-    /**
-     * @covers ::getExtensionsInfo
-     * @covers ::getExtensionVersions
-     * @covers ::getExtensionURLs
-     * @dataProvider provideTestGetExtensions_empty
-     */
-    public function testGetExtensions_empty(
-        bool $verbose,
-        string $type,
-        string $expected
-    ) {
-        $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
-        $actionApi = $this->installApi( $remote, self::MW_API );
-        $actionApi->expects( $this->once() )
-            ->method( 'request' )
-            ->willReturn( [ 'query' => [ 'extensions' => [] ] ] );
-        $parser = $this->createNoOpMock( Parser::class );
-        $this->assertSame(
-            $expected,
-            $remote->remoteVersion( $parser, self::MW_API, $type ),
-            'Empty extensions'
-        );
-    }
-    
-    public static function provideTestGetExtensions_empty() {
-        $error = 'ERROR: empty extensions response';
-        yield 'Verbose versions' => [ true, 'extensions', $error ];
-        yield 'Verbose URLs' => [ true, 'extension-urls', $error ];
-        yield 'Non-verbose versions' => [ false, 'extensions', '' ];
-        yield 'Non-verbose URLs' => [ false, 'extension-urls', '' ];
-    }
+	public static function provideTestGetGenerator_error() {
+		yield 'Verbose' => [
+			true,
+			'TESTING!!!'
+		];
+		yield 'Non-verbose' => [
+			false,
+			''
+		];
+	}
 
-    /**
-     * @covers ::getExtensionsInfo
-     * @covers ::getExtensionVersions
-     * @covers ::getExtensionURLs
-     * @dataProvider provideTestGetExtensions_error
-     */
-    public function testGetExtensions_error(
-        bool $verbose,
-        string $type,
-        string $expected
-    ) {
-        $remote =  $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
-        $actionApi = $this->installApi( $remote, self::MW_API );
-        $actionApi->expects( $this->once() )
-            ->method( 'request' )
-            ->willThrowException( new Exception( 'TESTING!!!' ) );
-        $parser = $this->createNoOpMock( Parser::class );
-        $this->assertSame(
-            $expected,
-            $remote->remoteVersion( $parser, self::MW_API, $type ),
-            'Error output'
-        );
-    }
-    
-    public static function provideTestGetExtensions_error() {
-        yield 'Verbose versions' => [ true, 'extensions', 'TESTING!!!' ];
-        yield 'Verbose URLs' => [ true, 'extension-urls', 'TESTING!!!' ];
-        yield 'Non-verbose versions' => [ false, 'extensions', '' ];
-        yield 'Non-verbose URLs' => [ false, 'extension-urls', '' ];
-    }
+	/**
+	 * @covers ::getExtensionsInfo
+	 * @covers ::getExtensionVersions
+	 * @covers ::getExtensionURLs
+	 * @dataProvider provideTestGetExtensions_cache
+	 */
+	public function testGetExtensions_cache( int $ttl, int $apiCalls ) {
+		$remote = $this->getRemote( [ 'RemoteWikiCacheTTL' => $ttl ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->exactly( $apiCalls ) )->method( 'request' )->willReturn( [
+				'query' => [
+					'extensions' => [
+						[
+							'name' => 'foo',
+							'version' => '123',
+							'url' => 'abc'
+						],
+						[
+							'name' => 'bar',
+							'vcs-version' => '456',
+							'url' => 'xyz'
+						],
+						[ 'name' => 'baz' ],
+					]
+				]
+			] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			'foo:123,bar:456,baz:?',
+			$remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Extensions are fetched'
+		);
+		$this->assertSame(
+			'foo:123,bar:456,baz:?',
+			$remote->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Cache usage'
+		);
+		$this->assertSame(
+			'foo:abc|bar:xyz|baz:?',
+			$remote->remoteVersion( $parser, self::MW_API, 'extension-urls' ),
+			'Cache usage'
+		);
+	}
 
-    /**
-     * We cannot intercept the *creation* of the `MediaWiki` api objects, but
-     * we can access the cache to install a fake version that will be used
-     * instead of creating a new real instance. This method is used to create
-     * and install that fake (mocked) version, and returns the ActionApi
-     * mock so that the `request` method can be configured in a more
-     * fine-grained manner.
-     *
-     * @param TestingAccessWrapper $remote MUST wrap a RemoteWiki instance
-     * @param string $endPoint
-     * @return ActionApi|MockObject
-     */
-    private function installApi(
-        TestingAccessWrapper $remote,
-        string $endPoint
-    ) {
-        $actionApi = $this->createNoOpMock(
-            ActionApi::class,
-            [ 'getApiUrl', 'request' ]
-        );
-        $actionApi->method( 'getApiUrl' )->willReturn( $endPoint );
+	public static function provideTestGetExtensions_cache() {
+		yield 'Cache is used, queried once' => [
+			3600,
+			1
+		];
+		yield 'Cache is not used, queried three times' => [
+			0,
+			3
+		];
+	}
 
-        $api = $this->createNoOpMock( MediaWiki::class, [ 'action' ] );
-        $api->method( 'action' )->willReturn( $actionApi );
+	/**
+	 * @covers ::getExtensionsInfo
+	 * @covers ::getExtensionVersions
+	 * @covers ::getExtensionURLs
+	 * @dataProvider provideTestGetExtensions_empty
+	 */
+	public function testGetExtensions_empty(
+		bool $verbose,
+		string $type,
+		string $expected
+	) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn( [ 'query' => [ 'extensions' => [] ] ] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API, $type ),
+			'Empty extensions'
+		);
+	}
 
-        // Based on getWikiApi()
-        $parsed = parse_url( $endPoint );
-        $apiKey = rtrim( $parsed['host'] . $parsed['path'], '/' );
+	public static function provideTestGetExtensions_empty() {
+		$error = 'ERROR: empty extensions response';
+		yield 'Verbose versions' => [
+			true,
+			'extensions',
+			$error
+		];
+		yield 'Verbose URLs' => [
+			true,
+			'extension-urls',
+			$error
+		];
+		yield 'Non-verbose versions' => [
+			false,
+			'extensions',
+			''
+		];
+		yield 'Non-verbose URLs' => [
+			false,
+			'extension-urls',
+			''
+		];
+	}
 
-        // Cannot indirectly modify overloaded property
-        $remote->apis = [ $apiKey => $api ];
-        return $actionApi;
-    }
+	/**
+	 * @covers ::getExtensionsInfo
+	 * @covers ::getExtensionVersions
+	 * @covers ::getExtensionURLs
+	 * @dataProvider provideTestGetExtensions_error
+	 */
+	public function testGetExtensions_error(
+		bool $verbose,
+		string $type,
+		string $expected
+	) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willThrowException( new Exception( 'TESTING!!!' ) );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API, $type ),
+			'Error output'
+		);
+	}
+
+	public static function provideTestGetExtensions_error() {
+		yield 'Verbose versions' => [
+			true,
+			'extensions',
+			'TESTING!!!'
+		];
+		yield 'Verbose URLs' => [
+			true,
+			'extension-urls',
+			'TESTING!!!'
+		];
+		yield 'Non-verbose versions' => [
+			false,
+			'extensions',
+			''
+		];
+		yield 'Non-verbose URLs' => [
+			false,
+			'extension-urls',
+			''
+		];
+	}
+
+	/**
+	 * We cannot intercept the *creation* of the `MediaWiki` api objects, but
+	 * we can access the cache to install a fake version that will be used
+	 * instead of creating a new real instance. This method is used to create
+	 * and install that fake (mocked) version, and returns the ActionApi
+	 * mock so that the `request` method can be configured in a more
+	 * fine-grained manner.
+	 *
+	 * @param TestingAccessWrapper $remote MUST wrap a RemoteWiki instance
+	 * @param string $endPoint
+	 *
+	 * @return ActionApi|MockObject
+	 */
+	private function installApi(
+		TestingAccessWrapper $remote,
+		string $endPoint
+	) {
+		$actionApi = $this->createNoOpMock(
+			ActionApi::class, [
+				'getApiUrl',
+				'request'
+			]
+		);
+		$actionApi->method( 'getApiUrl' )->willReturn( $endPoint );
+
+		$api = $this->createNoOpMock( MediaWiki::class, [ 'action' ] );
+		$api->method( 'action' )->willReturn( $actionApi );
+
+		// Based on getWikiApi()
+		$parsed = parse_url( $endPoint );
+		$apiKey = rtrim( $parsed['host'] . $parsed['path'], '/' );
+
+		// Cannot indirectly modify overloaded property
+		$remote->apis = [ $apiKey => $api ];
+
+		return $actionApi;
+	}
 
 }
