@@ -2,7 +2,6 @@
 
 namespace MediaWiki\Extension\RemoteWiki;
 
-use Addwiki\Mediawiki\Api\Client\Action\Exception\UsageException;
 use Addwiki\Mediawiki\Api\Client\Action\Request\ActionRequest;
 use Addwiki\Mediawiki\Api\Client\Auth\UserAndPassword;
 use Addwiki\Mediawiki\Api\Client\MediaWiki;
@@ -47,11 +46,12 @@ class RemoteWiki {
 
 	/**
 	 * @param Parser $parser
+	 * @param null $endPoint
+	 * @param null $type
 	 *
 	 * @return string
 	 */
 	public function remoteVersion( Parser $parser, $endPoint = null, $type = null ): string {
-
 		if ( !$this->validateEndpoint( $endPoint ) ) {
 			return '';
 		}
@@ -62,8 +62,14 @@ class RemoteWiki {
 			case 'extensions':
 				$result = $this->getExtensionVersions( $api );
 				break;
+			case 'skins':
+				$result = $this->getSkinVersions( $api );
+				break;
 			case 'extension-urls':
 				$result = $this->getExtensionURLs( $api );
+				break;
+			case 'skin-urls':
+				$result = $this->getSkinURLs( $api );
 				break;
 			case 'version':
 			default:
@@ -184,6 +190,27 @@ class RemoteWiki {
 	}
 
 	/**
+	 * Get skin versions
+	 *
+	 * @param MediaWiki $api
+	 * @return string
+	 */
+	private function getSkinVersions( MediaWiki $api ): string {
+		$result = $this->getSkinsInfo( $api );
+		if ( is_string( $result ) ) {
+			// There was an error
+			return $result;
+		} else if (
+			is_array( $result )
+			&& array_key_exists( 'versions', $result )
+		) {
+			return $result['versions'];
+		} else {
+			throw new LogicException( 'Invalid getSkinsInfo() result' );
+		}
+	}
+
+	/**
 	 * Get extensions urls
 	 *
 	 * @param MediaWiki $api
@@ -205,12 +232,98 @@ class RemoteWiki {
 	}
 
 	/**
+	 * Get skin urls
+	 *
+	 * @param MediaWiki $api
+	 * @return string
+	 */
+	private function getSkinURLs( MediaWiki $api ): string {
+		$result = $this->getSkinsInfo( $api );
+		if ( is_string( $result ) ) {
+			// There was an error
+			return $result;
+		} else if (
+			is_array( $result )
+			&& array_key_exists( 'urls', $result )
+		) {
+			return $result['urls'];
+		} else {
+			throw new LogicException( 'Invalid getSkinsInfo() result' );
+		}
+	}
+
+	/**
 	 * Get extensions information (both versions and URLs)
 	 *
 	 * @param MediaWiki $api
 	 * @return array|string
 	 */
 	private function getExtensionsInfo( MediaWiki $api ) {
+		$extensions = $this->getExtensionsData( $api );
+		if ( empty( $extensions ) ) {
+			return $this->config->get( 'RemoteWikiVerbose' ) ? 'ERROR: empty extensions response' : '';
+		}
+		// generate extension:version pairs and extension:URL pairs
+		$versions = [];
+		$urls = [];
+		foreach ( $extensions as $extension ) {
+			// filter out skins
+			if ( isset( $extension['type'] ) && $extension['type'] === 'skin' ) {
+				continue;
+			}
+			$versions[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
+			$urls[] = $extension['name'] . ':' . ( $extension['url'] ?? '?' );
+		}
+		// URLs cannot be separated by a comma, that is a valid URL
+		// character, see
+		// https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
+		// instead we will use a |, which isn't a valid part of a URL
+		$result = [
+			'versions' => implode( ',', $versions ),
+			'urls' => implode( '|', $urls ),
+		];
+		return $result;
+	}
+
+	/**
+	 * Get skins information (both versions and URLs)
+	 *
+	 * @param MediaWiki $api
+	 * @return array|string
+	 */
+	private function getSkinsInfo( MediaWiki $api ) {
+		$extensions = $this->getExtensionsData( $api );
+		if ( empty( $extensions ) ) {
+			return $this->config->get( 'RemoteWikiVerbose' ) ? 'ERROR: empty extensions response' : '';
+		}
+		// generate extension:version pairs and extension:URL pairs
+		$versions = [];
+		$urls = [];
+		foreach ( $extensions as $extension ) {
+			// filter out skins
+			if ( isset( $extension['type'] ) && $extension['type'] !== 'skin' ) {
+				continue;
+			}
+			$versions[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
+			$urls[] = $extension['name'] . ':' . ( $extension['url'] ?? '?' );
+		}
+		// URLs cannot be separated by a comma, that is a valid URL
+		// character, see
+		// https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
+		// instead we will use a |, which isn't a valid part of a URL
+		$result = [
+			'versions' => implode( ',', $versions ),
+			'urls' => implode( '|', $urls ),
+		];
+		return $result;
+	}
+
+	/**
+	 * @param MediaWiki $api
+	 *
+	 * @return array
+	 */
+	private function getExtensionsData( MediaWiki $api ) {
 		$reqKey = $this->cache->makeKey(
 			$api->action()->getApiUrl(),
 			'extensions',
@@ -230,31 +343,17 @@ class RemoteWiki {
 				'siprop' => 'extensions'
 			]
 		);
+
 		try {
 			$result = $api->action()->request( $versionReq );
 			$extensions = $result['query']['extensions'];
 			if ( empty( $extensions ) ) {
-				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty extensions response' : '';
+				return $extensions;
 			}
-			// generate extension:version pairs and extension:URL pairs
-			$versions = [];
-			$urls = [];
-			foreach ( $extensions as $extension ) {
-				$versions[] = $extension['name'] . ':' . ( $extension['version'] ?? $extension['vcs-version'] ?? '?' );
-				$urls[] = $extension['name'] . ':' . ( $extension['url'] ?? '?' );
-			}
-			// URLs cannot be separated by a comma, that is a valid URL
-			// character, see
-			// https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
-			// instead we will use a |, which isn't a valid part of a URL
-			$result = [
-				'versions' => implode( ',', $versions ),
-				'urls' => implode( '|', $urls ),
-			];
-			$this->cache->set( $reqKey, $result, $cacheTTL );
-			return $result;
+			$this->cache->set( $reqKey, $extensions, $cacheTTL );
+			return $extensions;
 		} catch ( Exception $e ) {
-			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
+			return [];
 		}
 	}
 
