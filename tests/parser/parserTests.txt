@@ -1,0 +1,18 @@
+!! Version 2
+
+# We do *not* use `functionhooks` to ensure that the extension is loaded,
+# because doing that results in the entire file being skipped if the extension
+# is missing, and then the test script still passes. We just assume that the
+# extension is loaded - if it is missing then the test will fail which is the
+# desired behavior.
+
+!! test
+mediawiki.org version - starts with 1.
+Used to ensure that the parser hook is registered
+!! wikitext
+{{padleft:|2|{{#remote_version:https://www.mediawiki.org/w/api.php}}}}
+!! html
+<p>1.
+</p>
+!! end
+
