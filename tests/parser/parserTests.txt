@@ -1,9 +1,10 @@
 !! Version 2
 
-# Use the test runner to ensure that the extension is loaded
-!! functionhooks
-remote_version
-!! endfunctionhooks
+# We do *not* use `functionhooks` to ensure that the extension is loaded,
+# because doing that results in the entire file being skipped if the extension
+# is missing, and then the test script still passes. We just assume that the
+# extension is loaded - if it is missing then the test will fail which is the
+# desired behavior.
 
 !! test
 mediawiki.org version - starts with 1.
