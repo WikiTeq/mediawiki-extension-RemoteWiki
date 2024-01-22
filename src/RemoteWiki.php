@@ -52,6 +52,14 @@ class RemoteWiki {
 	 * @return string
 	 */
 	public function remoteVersion( Parser $parser, $endPoint = null, $type = null ): string {
+		// Verify that the `addwiki/mediawiki-api-base` composer dependency is
+		// installed - we check if the `Addwiki\Mediawiki\Api\Client\MediaWiki`
+		// class is installed and assume that if it is, the entire package is
+		// available.
+		if ( !class_exists( MediaWiki::class ) ) {
+			return '(RemoteWiki: addwiki/mediawiki-api-base not installed)';
+		}
+
 		if ( !$this->validateEndpoint( $endPoint ) ) {
 			return '';
 		}
