@@ -5,7 +5,7 @@
 		"WikiTeq",
 		"Vedmaka"
 	],
-	"url": "https://www.mediawiki.org/wiki/Extension:RemoteWiki",
+	"url": "https://github.com/WikiTeq/mediawiki-extension-RemoteWiki#readme",
 	"descriptionmsg": "remotewiki-desc",
 	"license-name": "MIT",
 	"requires": {
