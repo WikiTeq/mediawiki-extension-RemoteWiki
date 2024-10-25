@@ -6,9 +6,9 @@ use Addwiki\Mediawiki\Api\Client\Action\Request\ActionRequest;
 use Addwiki\Mediawiki\Api\Client\Auth\UserAndPassword;
 use Addwiki\Mediawiki\Api\Client\MediaWiki;
 use Config;
-use Exception;
 use LogicException;
 use Parser;
+use Throwable;
 use WANObjectCache;
 
 /**
@@ -163,7 +163,7 @@ class RemoteWiki {
 			}
 			$this->cache->set( $reqKey, $version, $cacheTTL );
 			return $version;
-		} catch ( Exception $e ) {
+		} catch ( Throwable $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
 		}
 	}
@@ -352,7 +352,7 @@ class RemoteWiki {
 			}
 			$this->cache->set( $reqKey, $extensions, $cacheTTL );
 			return $extensions;
-		} catch ( Exception $e ) {
+		} catch ( Throwable $e ) {
 			return [];
 		}
 	}
