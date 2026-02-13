@@ -83,11 +83,11 @@ class RemoteWiki {
 	/**
 	 * Validates wiki API endpoint URL
 	 *
-	 * @param string $endPoint
+	 * @param string|null $endPoint
 	 *
 	 * @return bool
 	 */
-	private function validateEndpoint( string $endPoint ): bool {
+	private function validateEndpoint( ?string $endPoint ): bool {
 		if ( !$endPoint ) {
 			return false;
 		}
@@ -110,7 +110,9 @@ class RemoteWiki {
 	 */
 	private function getWikiApi( string $endPoint ): MediaWiki {
 		$parse = parse_url( $endPoint );
-		$test = rtrim( $parse['host'] . $parse['path'], '/' );
+		$host = $parse['host'] ?? '';
+		$path = $parse['path'] ?? '';
+		$test = rtrim( $host . $path, '/' );
 		if ( array_key_exists( $test, $this->apis ) ) {
 			return $this->apis[$test];
 		}
@@ -156,7 +158,7 @@ class RemoteWiki {
 
 		try {
 			$result = $api->action()->request( $versionReq );
-			$generator = $result['query']['general']['generator'];
+			$generator = $result['query']['general']['generator'] ?? '';
 			$version = preg_replace( '/[^0-9\.]/', '', $generator );
 			if ( empty( $version ) ) {
 				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
@@ -346,7 +348,7 @@ class RemoteWiki {
 
 		try {
 			$result = $api->action()->request( $versionReq );
-			$extensions = $result['query']['extensions'];
+			$extensions = $result['query']['extensions'] ?? [];
 			if ( empty( $extensions ) ) {
 				return $extensions;
 			}
