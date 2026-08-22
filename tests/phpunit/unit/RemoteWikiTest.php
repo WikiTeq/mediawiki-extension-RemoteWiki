@@ -32,7 +32,7 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 	 *
 	 * @return TestingAccessWrapper wrapping RemoteWiki
 	 */
-	private function getRemote( array $config = [] ): TestingAccessWrapper {
+	private function getRemote( array $config = [], WANObjectCache $wanCache = null ): TestingAccessWrapper {
 		$defaults = [
 			'RemoteWikiBotPasswords' => [],
 			'RemoteWikiCacheTTL' => 3600,
@@ -40,7 +40,8 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 			'RemoteWikiTimeout' => 60,
 		];
 		$remote = new RemoteWiki(
-			new HashConfig( $config + $defaults ), new WANObjectCache( [ 'cache' => new HashBagOStuff() ] )
+			new HashConfig( $config + $defaults ),
+			$wanCache ?? new WANObjectCache( [ 'cache' => new HashBagOStuff() ] )
 		);
 
 		return TestingAccessWrapper::newFromObject( $remote );
@@ -186,6 +187,89 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
+	 * A TTL of zero disables the cache, so nothing may ever be written to the
+	 * store: WANObjectCache::set() treats a TTL of zero as "indefinite", and
+	 * entries written while caching is disabled would be served forever once
+	 * caching is re-enabled.
+	 *
+	 * Proven cross-instance: a second RemoteWiki with caching re-enabled and
+	 * sharing the same WANObjectCache must not see any value from the first.
+	 *
+	 * @covers ::getGenerator
+	 */
+	public function testGetGenerator_zeroTtlWritesNothing() {
+		$wanCache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
+
+		// Caching disabled: every call must hit the API and write nothing
+		$remoteNoCache = $this->getRemote( [ 'RemoteWikiCacheTTL' => 0 ], $wanCache );
+		$actionApi = $this->installApi( $remoteNoCache, self::MW_API );
+		$actionApi->expects( $this->exactly( 2 ) )->method( 'request' )->willReturn( [
+				'query' => [
+					'general' => [ 'generator' => 'MediaWiki 1.41.0-wmf.123', ]
+				]
+			] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			'1.41.0.123',
+			$remoteNoCache->remoteVersion( $parser, self::MW_API ),
+			'Version is fetched with caching disabled'
+		);
+		$this->assertSame(
+			'1.41.0.123',
+			$remoteNoCache->remoteVersion( $parser, self::MW_API ),
+			'Second fetch also hits the API, nothing was cached'
+		);
+
+		// Caching re-enabled on a fresh instance sharing the same store
+		$remoteCached = $this->getRemote( [], $wanCache );
+		$actionApiCached = $this->installApi( $remoteCached, self::MW_API );
+		$actionApiCached->expects( $this->once() )->method( 'request' )->willReturn( [
+				'query' => [
+					'general' => [ 'generator' => 'MediaWiki 2.0.0-wmf.777', ]
+				]
+			] );
+
+		$this->assertSame(
+			'2.0.0.777',
+			$remoteCached->remoteVersion( $parser, self::MW_API ),
+			'Re-enabled cache must not serve data fetched while caching was disabled'
+		);
+	}
+
+	/**
+	 * @covers ::getGenerator
+	 */
+	public function testGetGenerator_nonZeroTtlIsShared() {
+		$wanCache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
+		$parser = $this->createNoOpMock( Parser::class );
+
+		// First instance populates the cache (one API call)
+		$remoteOne = $this->getRemote( [], $wanCache );
+		$actionApiOne = $this->installApi( $remoteOne, self::MW_API );
+		$actionApiOne->expects( $this->once() )->method( 'request' )->willReturn( [
+				'query' => [
+					'general' => [ 'generator' => 'MediaWiki 1.41.0-wmf.123', ]
+				]
+			] );
+		$this->assertSame(
+			'1.41.0.123',
+			$remoteOne->remoteVersion( $parser, self::MW_API ),
+			'Version is fetched'
+		);
+
+		// Second instance sharing the same store gets the cached version
+		// without any further API call
+		$remoteTwo = $this->getRemote( [], $wanCache );
+		$actionApiTwo = $this->installApi( $remoteTwo, self::MW_API );
+		$actionApiTwo->expects( $this->never() )->method( 'request' );
+		$this->assertSame(
+			'1.41.0.123',
+			$remoteTwo->remoteVersion( $parser, self::MW_API ),
+			'Caching works across instances with a non-zero TTL'
+		);
+	}
+
+	/**
 	 * @covers ::getGenerator
 	 * @dataProvider provideTestGetGenerator_empty
 	 */
@@ -294,6 +378,100 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 			0,
 			3
 		];
+	}
+
+	/**
+	 * A TTL of zero disables the cache, so nothing may ever be written to the
+	 * store: WANObjectCache::set() treats a TTL of zero as "indefinite", and
+	 * entries written while caching is disabled would be served forever once
+	 * caching is re-enabled.
+	 *
+	 * Proven cross-instance: a second RemoteWiki with caching re-enabled and
+	 * sharing the same WANObjectCache must not see any value from the first.
+	 *
+	 * @covers ::getExtensionsData
+	 */
+	public function testGetExtensionsData_zeroTtlWritesNothing() {
+		$wanCache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
+		$parser = $this->createNoOpMock( Parser::class );
+
+		// Caching disabled: every call must hit the API and write nothing
+		$remoteNoCache = $this->getRemote( [ 'RemoteWikiCacheTTL' => 0 ], $wanCache );
+		$actionApi = $this->installApi( $remoteNoCache, self::MW_API );
+		$actionApi->expects( $this->exactly( 3 ) )->method( 'request' )->willReturn( [
+				'query' => [
+					'extensions' => [
+						[ 'name' => 'foo', 'version' => '123', 'url' => 'abc' ],
+					]
+				]
+			] );
+		$this->assertSame(
+			'foo:123',
+			$remoteNoCache->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Extensions are fetched with caching disabled'
+		);
+		$this->assertSame(
+			'foo:123',
+			$remoteNoCache->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Second fetch also hits the API, nothing was cached'
+		);
+		$this->assertSame(
+			'foo:abc',
+			$remoteNoCache->remoteVersion( $parser, self::MW_API, 'extension-urls' ),
+			'URL fetch also hits the API, nothing was cached'
+		);
+
+		// Caching re-enabled on a fresh instance sharing the same store
+		$remoteCached = $this->getRemote( [], $wanCache );
+		$actionApiCached = $this->installApi( $remoteCached, self::MW_API );
+		$actionApiCached->expects( $this->once() )->method( 'request' )->willReturn( [
+				'query' => [
+					'extensions' => [
+						[ 'name' => 'stale', 'version' => '999', 'url' => 'stale-url' ],
+					]
+				]
+			] );
+
+		$this->assertSame(
+			'stale:999',
+			$remoteCached->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Re-enabled cache must not serve data fetched while caching was disabled'
+		);
+	}
+
+	/**
+	 * @covers ::getExtensionsData
+	 */
+	public function testGetExtensionsData_nonZeroTtlIsShared() {
+		$wanCache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
+		$parser = $this->createNoOpMock( Parser::class );
+
+		// First instance populates the cache (one API call)
+		$remoteOne = $this->getRemote( [], $wanCache );
+		$actionApiOne = $this->installApi( $remoteOne, self::MW_API );
+		$actionApiOne->expects( $this->once() )->method( 'request' )->willReturn( [
+				'query' => [
+					'extensions' => [
+						[ 'name' => 'foo', 'version' => '123', 'url' => 'abc' ],
+					]
+				]
+			] );
+		$this->assertSame(
+			'foo:123',
+			$remoteOne->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Extensions are fetched'
+		);
+
+		// Second instance sharing the same store gets the cached extensions
+		// without any further API call
+		$remoteTwo = $this->getRemote( [], $wanCache );
+		$actionApiTwo = $this->installApi( $remoteTwo, self::MW_API );
+		$actionApiTwo->expects( $this->never() )->method( 'request' );
+		$this->assertSame(
+			'foo:123',
+			$remoteTwo->remoteVersion( $parser, self::MW_API, 'extensions' ),
+			'Caching works across instances with a non-zero TTL'
+		);
 	}
 
 	/**
