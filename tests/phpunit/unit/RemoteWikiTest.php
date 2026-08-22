@@ -50,7 +50,7 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 	 * @covers ::validateEndpoint
 	 * @dataProvider provideValidateEndpoint
 	 */
-	public function testValidateEndpoint( string $endPoint, bool $expected ) {
+	public function testValidateEndpoint( ?string $endPoint, bool $expected ) {
 		$this->assertSame(
 			$expected,
 			$this->getRemote()->validateEndpoint( $endPoint )
@@ -58,6 +58,10 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 	}
 
 	public static function provideValidateEndpoint() {
+		yield 'null' => [
+			null,
+			false
+		];
 		yield 'empty string' => [
 			'',
 			false
@@ -150,6 +154,51 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
+	 * A URL without a path (e.g. https://example.com) must not raise a
+	 * TypeError when building the api cache key on PHP 8
+	 *
+	 * @covers ::getWikiApi
+	 */
+	public function testGetWikiApi_pathlessUrl() {
+		$remote = $this->getRemote();
+		$api = $remote->getWikiApi( 'https://example.com' );
+		$this->assertInstanceOf( MediaWiki::class, $api );
+
+		// A second call must be served from the cache built with the
+		// same (guarded) key, i.e. return the identical instance
+		$this->assertSame(
+			$api,
+			$remote->getWikiApi( 'https://example.com' ),
+			'Path-less endpoints are cached'
+		);
+	}
+
+	/**
+	 * Full remoteVersion() round-trip with a path-less endpoint: the
+	 * installApi() helper must find the mocked api, and the version
+	 * must be fetched without any TypeError
+	 *
+	 * @covers ::remoteVersion
+	 * @covers ::getWikiApi
+	 * @covers ::getGenerator
+	 */
+	public function testRemoteVersion_pathlessUrl() {
+		$remote = $this->getRemote();
+		$actionApi = $this->installApi( $remote, 'https://example.com' );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn( [
+				'query' => [
+					'general' => [ 'generator' => 'MediaWiki 1.39.7', ]
+				]
+			] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			'1.39.7',
+			$remote->remoteVersion( $parser, 'https://example.com' ),
+			'Path-less endpoint version is fetched'
+		);
+	}
+
+	/**
 	 * @covers ::getGenerator
 	 * @dataProvider provideTestGetGenerator_cache
 	 */
@@ -234,6 +283,53 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 		yield 'Verbose' => [
 			true,
 			'TESTING!!!'
+		];
+		yield 'Non-verbose' => [
+			false,
+			''
+		];
+	}
+
+	/**
+	 * The api response is missing the top-level 'query' key
+	 *
+	 * @covers ::getGenerator
+	 * @dataProvider provideTestGetGenerator_malformed
+	 */
+	public function testGetGenerator_noQuery( bool $verbose, string $expected ) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn( [ 'batchcomplete' => true ] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API ),
+			'Missing query key handled gracefully'
+		);
+	}
+
+	/**
+	 * The api response has a 'query' key but no 'general' subkey
+	 *
+	 * @covers ::getGenerator
+	 * @dataProvider provideTestGetGenerator_malformed
+	 */
+	public function testGetGenerator_noGeneral( bool $verbose, string $expected ) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn( [ 'query' => [ 'statistics' => [] ] ] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API ),
+			'Missing general key handled gracefully'
+		);
+	}
+
+	public static function provideTestGetGenerator_malformed() {
+		yield 'Verbose' => [
+			true,
+			'ERROR: empty version response'
 		];
 		yield 'Non-verbose' => [
 			false,
@@ -388,6 +484,77 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
+	 * The api response is missing the top-level 'query' key
+	 *
+	 * @covers ::getExtensionsInfo
+	 * @covers ::getExtensionVersions
+	 * @covers ::getExtensionURLs
+	 * @dataProvider provideTestGetExtensions_malformed
+	 */
+	public function testGetExtensions_noQuery(
+		bool $verbose,
+		string $type,
+		string $expected
+	) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn( [ 'batchcomplete' => true ] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API, $type ),
+			'Missing query key handled gracefully'
+		);
+	}
+
+	/**
+	 * The api response has a 'query' key but no 'extensions' subkey
+	 *
+	 * @covers ::getExtensionsInfo
+	 * @covers ::getExtensionVersions
+	 * @covers ::getExtensionURLs
+	 * @dataProvider provideTestGetExtensions_malformed
+	 */
+	public function testGetExtensions_noExtensions(
+		bool $verbose,
+		string $type,
+		string $expected
+	) {
+		$remote = $this->getRemote( [ 'RemoteWikiVerbose' => $verbose ] );
+		$actionApi = $this->installApi( $remote, self::MW_API );
+		$actionApi->expects( $this->once() )->method( 'request' )->willReturn( [ 'query' => [ 'general' => [] ] ] );
+		$parser = $this->createNoOpMock( Parser::class );
+		$this->assertSame(
+			$expected,
+			$remote->remoteVersion( $parser, self::MW_API, $type ),
+			'Missing extensions key handled gracefully'
+		);
+	}
+
+	public static function provideTestGetExtensions_malformed() {
+		yield 'Verbose versions' => [
+			true,
+			'extensions',
+			'ERROR: empty extensions response'
+		];
+		yield 'Verbose URLs' => [
+			true,
+			'extension-urls',
+			'ERROR: empty extensions response'
+		];
+		yield 'Non-verbose versions' => [
+			false,
+			'extensions',
+			''
+		];
+		yield 'Non-verbose URLs' => [
+			false,
+			'extension-urls',
+			''
+		];
+	}
+
+	/**
 	 * We cannot intercept the *creation* of the `MediaWiki` api objects, but
 	 * we can access the cache to install a fake version that will be used
 	 * instead of creating a new real instance. This method is used to create
@@ -415,9 +582,10 @@ class RemoteWikiTest extends MediaWikiUnitTestCase {
 		$api = $this->createNoOpMock( MediaWiki::class, [ 'action' ] );
 		$api->method( 'action' )->willReturn( $actionApi );
 
-		// Based on getWikiApi()
+		// Based on getWikiApi(), which guards against missing 'host' or
+		// 'path' keys (e.g. path-less URLs like https://example.com)
 		$parsed = parse_url( $endPoint );
-		$apiKey = rtrim( $parsed['host'] . $parsed['path'], '/' );
+		$apiKey = rtrim( ( $parsed['host'] ?? '' ) . ( $parsed['path'] ?? '' ), '/' );
 
 		// Cannot indirectly modify overloaded property
 		$remote->apis = [ $apiKey => $api ];
