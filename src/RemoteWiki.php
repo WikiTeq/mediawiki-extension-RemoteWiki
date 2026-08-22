@@ -161,7 +161,11 @@ class RemoteWiki {
 			if ( empty( $version ) ) {
 				return $this->config->get('RemoteWikiVerbose') ? 'ERROR: empty version response' : '';
 			}
-			$this->cache->set( $reqKey, $version, $cacheTTL );
+			// A TTL of zero disables the cache; WANObjectCache::set() would
+			// treat it as an indefinite TTL and store the value forever
+			if ( $cacheTTL != 0 ) {
+				$this->cache->set( $reqKey, $version, $cacheTTL );
+			}
 			return $version;
 		} catch ( Throwable $e ) {
 			return $this->config->get('RemoteWikiVerbose') ? $e->getMessage() : '';
@@ -350,7 +354,11 @@ class RemoteWiki {
 			if ( empty( $extensions ) ) {
 				return $extensions;
 			}
-			$this->cache->set( $reqKey, $extensions, $cacheTTL );
+			// A TTL of zero disables the cache; WANObjectCache::set() would
+			// treat it as an indefinite TTL and store the value forever
+			if ( $cacheTTL != 0 ) {
+				$this->cache->set( $reqKey, $extensions, $cacheTTL );
+			}
 			return $extensions;
 		} catch ( Throwable $e ) {
 			return [];
